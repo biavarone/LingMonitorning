@@ -23,7 +23,7 @@ class Token:
         self.lemma = items[2]
         self.upos = items[3]  # universal POS
         self.xpos = items[4]  # language-spec POS
-        self.mfeats = items[5]  # features morfologiche
+        self.mfeats = items[5]  # morphological features
         self.head = int(items[6])  # head of the current word (if 0 --> root of the whole tree)
         self.dep = items[7]  # UD relation to the HEAD
         self.children = []  # Children of ROOT token (array filled in Sentence())
@@ -50,7 +50,7 @@ class Sentence:
             if n.head == 0:
                 self.root = n
             if n.head != 0:
-                # TODO tokens[n.head] --> se n.head = 3 prenderà sempre il token4 ????????????????????????
+                # TODO tokens[n.head] --> se n.head = 3 prenderà sempre il token4 ???????
                 # Append children to ROOT token
                 tokens[n.head - 1].children.append(n)
 

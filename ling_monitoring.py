@@ -1,12 +1,58 @@
 # -*- coding: utf-8  -*-
 # !/usr/bin/python
 
+import argparse
 import codecs
-import sys
+import glob
+import os
 from hashlib import md5
 from utils import vectorize
 from senttok import Sentence, Token
 from compute_features import compute_features
+
+
+def read_dictionary(dict_file):
+    """
+    Reads the dictionary file and builds a dict
+
+    :param dict_file: (string) path to dictionary file
+    :return: (dict) dictionary
+    """
+    dictionary = {}
+    with codecs.open(dict_file, 'r', 'utf-8') as f:
+        for line in f:
+            line = line.strip().split('\t')
+            dictionary[line[0]] = line[1].strip()
+    return dictionary
+
+
+def read_and_compute(sentences, type_chosen, *fund_dictionary):
+
+    if fund_dictionary:
+        # Import file of 'Dizionario Fondamentale (De Mauro)' (only for Italian for now)
+        dictionary = read_dictionary(fund_dictionary[0])
+    else:
+        dictionary = None
+
+    sent_features = {}
+    doc_sent = []
+
+    if type_chosen == 0:  # analyse single sentences
+        for sent_id, sentence in sentences[1].items():
+            doc_sent.append(sentence)
+            # Compute linguistic features and store them in a dictionary {Key: sentence_id, Value: sentence_features}
+            # The function takes in input the sentences of every document and the Dizionario Fondamentale, if present
+            features = compute_features(doc_sent, dictionary)
+            sent_features[sent_id] = features
+            doc_sent = []
+    elif type_chosen == 1:
+        doc_id = sentences[0]
+        for sentence in sentences[1].values():
+            doc_sent.append(sentence)
+        features = compute_features(doc_sent, dictionary)
+        sent_features[doc_id] = features
+
+    return sent_features
 
 
 def read_file(input_file):
@@ -16,12 +62,15 @@ def read_file(input_file):
     :param input_file: (string) path to input file
     :return: ([[Sentence]]) list of documents in file
     """
-    # sentences = []
+
+    docs = {}
     sentences = {}
     sentence = []
-    # identifiers = []
 
-    with codecs.open(input_file, 'r', 'utf-8') as f:
+    with codecs.open(input_file, 'r') as f:
+
+        doc_id = os.path.basename(f.name)  # use filename as id of the document
+
         for line in f:
             if line == '\n' and sentence:
                 mysent = Sentence(sentence)  # Create an object Sentence
@@ -56,48 +105,70 @@ def read_file(input_file):
             m.update(identifier.encode('utf-8'))
             sentences[m.hexdigest()] = mysent
 
-    return sentences
+        docs[doc_id] = sentences
+
+        return docs
 
 
-def read_dictionary(dict_file):
-    """
-    Reads the dictionary file and builds a dict
-
-    :param dict_file: (string) path to dictionary file
-    :return: (dict) dictionary
-    """
-    dictionary = {}
-    with codecs.open(dict_file, 'r', 'utf-8') as f:
-        for line in f:
-            line = line.strip().split('\t')
-            dictionary[line[0]] = line[1].strip()
-    return dictionary
-
-
-def read_and_compute(input_file, *fund_dictionary):
-
-    sentences = read_file(input_file)  # Reads input file in CoNLL-U format
-
-    if fund_dictionary:
-        # Import file of 'Dizionario Fondamentale (De Mauro)' (only for Italian for now)
-        dictionary = read_dictionary(fund_dictionary[0])
+def dir_path(path):
+    if os.path.isdir(path):
+        return path
     else:
-        dictionary = None
+        raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
 
-    sent_features = {}
 
-    for sent_id, sentence in sentences.items():
-        # Compute linguistic features and store them in a dictionary {Key: sentence_id, Value: sentence_features}
-        # The function takes in input the sentences of every document and the Dizionario Fondamentale, if present
-        features = compute_features(sentence, dictionary)
-        sent_features[sent_id] = features
-    vectorize(sent_features)
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Extract linguistic features from sentences or documents parsed in'
+                                                 'CoNLL-U format')
+    parser.add_argument('-path', type=dir_path)
+    parser.add_argument('-d', '--dict', type=str, required=False,
+                        help='Dictionary that contains the categories of the frequency of use of lemmas and words (see '
+                             'the README for details on the structure of the dictionary)')
+    parser.add_argument('-t', '--type', type=int, default=1, choices=[0, 1], help='Select if you want to analyse the '
+                                                                                  'single sentences [0] contained in a '
+                                                                                  'file or the whole file as a document'
+                                                                                  '[1]. Default is 1 for documents.')
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    # TODO handle input as documents and as sentences
-    # try:
-    #     read_and_compute(sys.argv[1], sys.argv[2])
-    # except IndexError:
-    #     read_and_compute(sys.argv[1])
-    read_and_compute('01.parsed', 'DizionarioFondamentale')
+
+    docs_features = {}
+    args = parse_arguments()
+    files = glob.glob(args.path + '*')
+
+    for name in files:
+        docs = read_file(name)
+        for doc in docs.items():  # here doc is passed as a tuple
+            if args.dict:
+                computed_features = read_and_compute(doc, args.type, args.dict)
+            else:
+                computed_features = read_and_compute(doc, args.type)
+            if args.type == 1:
+                docs_features.update(computed_features)
+
+        if args.type == 0:
+            my_output = name.strip().split('/')
+            output_name = my_output[1]
+
+            try:
+                outfile = codecs.open('output_results/' + output_name + '.out', 'w')
+            except OSError:
+                os.makedirs('output_results')
+                outfile = codecs.open('output_results/' + output_name + '.out', 'w')
+
+            outfile.write(vectorize(computed_features))
+            outfile.close()
+
+        if args.type == 1:
+            my_output = name.strip().split('/')
+            output_name = my_output[1]
+
+            try:
+                outfile = codecs.open('output_results/results.out', 'w')
+            except OSError:
+                os.makedirs('output_results')
+                outfile = codecs.open('output_results/results.out', 'w')
+
+            outfile.write(vectorize(docs_features))
+            outfile.close()

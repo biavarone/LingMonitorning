@@ -13,8 +13,7 @@ class Features:
     number_re = re.compile('Number=[A-Za-z]+')
     verbform_re = re.compile('VerbForm=[A-Za-z]+')
     gender_re = re.compile('Gender=[A-Za-z]+')
-    chunks_len = 100
-    # chunks_len_200 = 200  # TODO
+    chunks_len = 100  # TODO chunks_len 100 e 200
 
     def __init__(self):
         self.n_char = 0  # number of characters per document (or sentence)
@@ -22,7 +21,7 @@ class Features:
         self.n_tok_no_punct = 0  # tokens per document without punctuation
         self.in_dict = 0  # tokens in dictionary (only italian for now)
         self.n_FO = 0  # (only IT for now) numero parole fondamentali per documento
-        self.n_AU = 0  # (only IT for now) numero parle alto uso per documento
+        self.n_AU = 0  # (only IT for now) numero parole alto uso per documento
         self.n_AD = 0  # (only IT for now) numero parole alta disponibilità per documento
         self.in_dict_types = 0  # types in dictionary (only IT for now)
         self.n_FO_types = 0  # (only IT for now) TIPI lessico fondamentale
@@ -48,7 +47,7 @@ class Features:
         self.n_prepositional_chain = 0
         self.total_prepositional_chain_len = 0
 
-        self.max_sentence_threes_depth = []
+        self.max_sentence_trees_depth = []
         self.prep_chains = []
         self.subordinate_chains = []
         self.ttrs_form = []
@@ -58,13 +57,13 @@ class Features:
         self.types_lemma = []
         self.types_form_chunk = []  # For documents
         self.types_lemma_chunk = []
-        self.upos_freq = {}
-        self.xpos_freq = {}
-        self.dep_freq = {}
-        self.verbs_mood_freq = {}
-        self.verbs_tense_freq = {}
-        self.verbs_num_pers_freq = {}
-        self.verb_edges_freq = {}
+        self.upos_total = {}
+        self.xpos_total = {}
+        self.dep_total = {}
+        self.verbs_mood_total = {}
+        self.verbs_tense_total = {}
+        self.verbs_num_pers_total = {}
+        self.verb_edges_total = {}
 
     @staticmethod
     def is_punct(token):
@@ -122,15 +121,16 @@ class Features:
         if not self.is_punct(token):
             self.n_char += len(token.form)
             self.n_tok_no_punct += 1
+        self.n_tok += 1
 
     def count_pos_and_dep(self, token):
         # Crea un dizionario con --> key: uPOS value: quante volte quella POS appare nel documento
-        dict_counter(self.upos_freq, token.upos)
+        dict_counter(self.upos_total, token.upos)
         # Crea un dizionario con key: tipo di dipendenza value: quante volte quella dipendenza appare nel documento
         # dep --> relazione di dipendenza che la parola ha con la sua testa
-        dict_counter(self.dep_freq, token.dep)
+        dict_counter(self.dep_total, token.dep)
         # Crea un dizionario con --> key: xPOS, value: quante volte quella POS appare nel documento
-        dict_counter(self.xpos_freq, token.xpos)
+        dict_counter(self.xpos_total, token.xpos)
 
     def count_lexical_words(self, token):
         if token.upos in self.lexical_words_list:
@@ -141,27 +141,19 @@ class Features:
             self.types_form_chunk.append(token.form)
         if token.lemma not in self.types_lemma_chunk and not self.is_punct(token):
             self.types_lemma_chunk.append(token.lemma)
-        if not self.is_punct(token):
-            self.n_tok_no_punct += 1  # count tokens in the document/sentence to compute type/token ratio
-        self.n_tok += 1
 
-        if self.n_tok_no_punct % self.chunks_len == 0:
+        if self.n_tok_no_punct == self.chunks_len:
             self.ttrs_form.append(ratio(len(self.types_form_chunk), float(self.n_tok_no_punct)))
             self.ttrs_lemma.append(ratio(len(self.types_lemma_chunk), float(self.n_tok_no_punct)))
-            # TODO queste cose commentate a che servono?
-            # features.n_tok = 0
-            # features.types_form_chunk = []
-            # features.types_lemma_chunk = []
-        # TODO se < 100 --> usa parte sotto
-        # TODO types_lemma dove è usato?
+
         if not self.is_punct(token) and token.lemma not in self.types_lemma:
             self.types_lemma.append(token.lemma)
         if not self.is_punct(token) and token.form not in self.types_form:
-            self.types_lemma.append(token.lemma)
+            self.types_form.append(token.form)
 
     def lexicon_in_dictionary(self, token, dictionary):
         # Lessico nel dizionario di DeMauro
-        if (token.lemma in dictionary) and not self.is_punct(token):
+        if token.lemma in dictionary and not self.is_punct(token):
             self.in_dict += 1
             if dictionary[token.lemma] == 'AU':
                 self.n_AU += 1
@@ -203,19 +195,19 @@ class Features:
             n_verb_edges = len(token.children)  # Trova tutti i dipendenti del verbo (archi entranti nella testa del verbo)
 
             # TODO problema: token.children contiene children della root, che in alcune treebank non è associata al verbo
-            dict_counter(self.verb_edges_freq, n_verb_edges)  # Quanti verbi nella frase con un tot di archi
+            dict_counter(self.verb_edges_total, n_verb_edges)  # Quanti verbi nella frase con un tot di archi
 
             self.total_verb_edges += n_verb_edges  # Numero totale archi in una frase/documento
 
 
             # TODO aggiungere gender e verbform
             try:
-                dict_counter(self.verbs_mood_freq,
-                             self.mood_re.findall(token.mfeats)[0][5:])  # TODO rivedere RegEx
+                dict_counter(self.verbs_mood_total,
+                             self.mood_re.findall(token.mfeats)[0][5:])
             except IndexError:
                 pass
             try:
-                dict_counter(self.verbs_tense_freq, self.tense_re.findall(token.mfeats)[0][6:])
+                dict_counter(self.verbs_tense_total, self.tense_re.findall(token.mfeats)[0][6:])
             except IndexError:
                 pass
             try:
@@ -226,7 +218,7 @@ class Features:
                 num = self.number_re.findall(token.mfeats)[0][7:]
             except IndexError:
                 num = ''
-            dict_counter(self.verbs_num_pers_freq, num + '+' + pers)
+            dict_counter(self.verbs_num_pers_total, num + '+' + pers)
 
             if token.dep == 'root':
                 self.n_verbal_root += 1
@@ -235,21 +227,17 @@ class Features:
         if token.dep == 'root':
             self.n_root += 1  # ROOT per doc/sentence
 
-    def count__links(self, token):
-        # 3 feature
+    def count_links(self, token):
         if token.head != 0 and not self.is_punct(token):
             self.n_links += 1  # Number of tokens linked to the root (?)
             link_len = abs(token.head - token.id)  # Link length (distance of the token from the head)
-            self.total_links_len += link_len  # TODO perché?
+            self.total_links_len += link_len  # Needed to compute average link length
 
-            # TODO escludi punteggiatura dal link
-            # TODO su frase tenere link più lungo, su documento per ogni frase link più lungo e poi fare una media
-            # TODO Documento: lunghezza media link massimi
             if link_len > self.max_links_len:
                 self.max_links_len = link_len  # Longest link per document
 
     def count_subjects(self, token):
-        # Checking number of roots and links per file
+        # Count pre-verbal and post-verbal subjects
         if 'subj' in token.dep:
             # Token.head contiene l'id dell'elemento da cui dipende il soggetto
             if token.id < token.head:

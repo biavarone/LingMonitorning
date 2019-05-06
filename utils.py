@@ -48,15 +48,22 @@ def ratio(dividend, divisor):
 
 def vectorize(documents):
     feats = {}
+
+    # Print header START
     for key, features in documents.items():
         for feature, value in features.items():
             if isinstance(value, float) or isinstance(value, int):
                 feats[feature] = None
+            elif isinstance(value, list) and len(value) == 1:
+                for el in value:
+                    if el[:5] == 'chunk':
+                        feats[feature] = None
             else:
                 try:
                     feats[feature] = list(set(feats[feature] + [i[0] for i in value]))
                 except KeyError:
                     feats[feature] = [i[0] for i in value]
+
     s = 'identifier' + '\t'
     for feat, val in feats.items():
         if val:
@@ -64,7 +71,9 @@ def vectorize(documents):
                 s += str(i) + '\t'
         else:
             s += feat + '\t'
-    print(s[:-2])
+    to_print = (s[:-2]) + '\n'
+    # PRINT HEADER END
+
     for identifier, document in documents.items():
         s = identifier + '\t'
         for feat, val in feats.items():
@@ -76,4 +85,6 @@ def vectorize(documents):
                         s += '0' + '\t'
             else:
                 s += str(document[feat]) + '\t'
-        print(s[:-2])
+        to_print += s[:-2] + '\n'
+
+    return to_print
