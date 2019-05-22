@@ -13,7 +13,6 @@ class Features:
     number_re = re.compile('Number=[A-Za-z]+')
     verbform_re = re.compile('VerbForm=[A-Za-z]+')
     gender_re = re.compile('Gender=[A-Za-z]+')
-    chunks_len = 100  # TODO chunks_len 100 e 200
 
     def __init__(self):
         self.n_char = 0  # number of characters per document (or sentence)
@@ -27,7 +26,7 @@ class Features:
         self.n_FO_types = 0  # (only IT for now) TIPI lessico fondamentale
         self.n_AU_types = 0  # (only IT for now) TIPI lessico alto uso
         self.n_AD_types = 0  # (only IT for now) TIPI lessico alta disponibilità
-        self.lexical_words = 0  # parole piene (lexical words) ##!! attenzione, prima self.full_words
+        self.lexical_words = 0  # parole piene (lexical words)
         self.n_verb = 0
         self.n_verbal_root = 0
         self.n_root = 0
@@ -50,18 +49,18 @@ class Features:
         self.max_sentence_trees_depth = []
         self.prep_chains = []
         self.subordinate_chains = []
-        self.ttrs_form = []
-        self.ttrs_lemma = []
+        self.ttrs_form = {}
+        self.ttrs_lemma = {}
 
         self.types_form = []
         self.types_lemma = []
-        self.types_form_chunk = []  # For documents
-        self.types_lemma_chunk = []
         self.upos_total = {}
         self.xpos_total = {}
         self.dep_total = {}
         self.verbs_mood_total = {}
         self.verbs_tense_total = {}
+        self.verbs_gender_total = {}
+        self.verbs_form_total = {}
         self.verbs_num_pers_total = {}
         self.verb_edges_total = {}
 
@@ -117,11 +116,10 @@ class Features:
         return lengths
 
     def count_chars_and_tokens(self, token):
-        # Conto caratteri per token, conto num token
         if not self.is_punct(token):
-            self.n_char += len(token.form)
-            self.n_tok_no_punct += 1
-        self.n_tok += 1
+            self.n_char += len(token.form)  # count characters per token
+            self.n_tok_no_punct += 1  # count tokens without punctuation
+        self.n_tok += 1  # count tokens with punctuation
 
     def count_pos_and_dep(self, token):
         # Crea un dizionario con --> key: uPOS value: quante volte quella POS appare nel documento
@@ -136,20 +134,18 @@ class Features:
         if token.upos in self.lexical_words_list:
             self.lexical_words += 1
 
-    def forms_and_lemmas(self, token):
-        if token.form not in self.types_form_chunk and not self.is_punct(token):
-            self.types_form_chunk.append(token.form)
-        if token.lemma not in self.types_lemma_chunk and not self.is_punct(token):
-            self.types_lemma_chunk.append(token.lemma)
-
-        if self.n_tok_no_punct == self.chunks_len:
-            self.ttrs_form.append(ratio(len(self.types_form_chunk), float(self.n_tok_no_punct)))
-            self.ttrs_lemma.append(ratio(len(self.types_lemma_chunk), float(self.n_tok_no_punct)))
-
-        if not self.is_punct(token) and token.lemma not in self.types_lemma:
-            self.types_lemma.append(token.lemma)
-        if not self.is_punct(token) and token.form not in self.types_form:
+    def count_forms_and_lemmas(self, token):
+        if token.form not in self.types_form and not self.is_punct(token):
             self.types_form.append(token.form)
+        if token.lemma not in self.types_lemma and not self.is_punct(token):
+            self.types_lemma.append(token.lemma)
+
+        if self.n_tok_no_punct == 100:
+            self.ttrs_form['chunks_100'] = ratio(len(self.types_form), float(self.n_tok_no_punct))
+            self.ttrs_lemma['chunks_100'] = ratio(len(self.types_lemma), float(self.n_tok_no_punct))
+        if self.n_tok_no_punct == 200:
+            self.ttrs_form['chunks_200'] = ratio(len(self.types_form), float(self.n_tok_no_punct))
+            self.ttrs_lemma['chunks_200'] = ratio(len(self.types_lemma), float(self.n_tok_no_punct))
 
     def lexicon_in_dictionary(self, token, dictionary):
         # Lessico nel dizionario di DeMauro
@@ -189,25 +185,24 @@ class Features:
     def verbal_features(self, token):
         if token.upos == 'VERB':
             self.n_verb += 1
-
-            # TODO n_verb_edges --> mai più usata oltre ste 3 righe. CHE FAMO???????
-            # TODO controllare che non aggiunga punteggiatura al numero di archi
             n_verb_edges = len(token.children)  # Trova tutti i dipendenti del verbo (archi entranti nella testa del verbo)
-
-            # TODO problema: token.children contiene children della root, che in alcune treebank non è associata al verbo
             dict_counter(self.verb_edges_total, n_verb_edges)  # Quanti verbi nella frase con un tot di archi
-
             self.total_verb_edges += n_verb_edges  # Numero totale archi in una frase/documento
 
-
-            # TODO aggiungere gender e verbform
             try:
-                dict_counter(self.verbs_mood_total,
-                             self.mood_re.findall(token.mfeats)[0][5:])
+                dict_counter(self.verbs_mood_total, self.mood_re.findall(token.mfeats)[0][5:])
             except IndexError:
                 pass
             try:
                 dict_counter(self.verbs_tense_total, self.tense_re.findall(token.mfeats)[0][6:])
+            except IndexError:
+                pass
+            try:
+                dict_counter(self.verbs_gender_total, self.gender_re.findall(token.mfeats)[0][7:])
+            except IndexError:
+                pass
+            try:
+                dict_counter(self.verbs_form_total, self.verbform_re.findall(token.mfeats)[0][9:])
             except IndexError:
                 pass
             try:
@@ -254,7 +249,6 @@ class Features:
                 self.n_obj_post += 1
 
     def count_prepositional_chain_and_syntagms(self, token, sentence):
-        # TODO ?
         if token.dep == 'nmod':
             if self.is_prepositional_syntagm(token):
                 if not self.is_prepositional_syntagm(sentence.tokens[token.head - 1]):
@@ -266,12 +260,11 @@ class Features:
     def count_subordinate_propositions(self, token, sentence):
         if self.is_subordinate_proposition(token):
             self.n_subordinate_proposition += 1
-            if token.id > sentence.root.id:  # TODO solito problema, non è detto che la root sia il verbo
+            if token.id > sentence.root.id:
                 self.n_subordinate_post += 1
             else:
                 self.n_subordinate_pre += 1
             if not self.is_subordinate_proposition(sentence.tokens[token.head - 1]):
-                # TODO magari controlla che qui funzioni tutto, prima o poi
                 chains_lenghts = self.get_chain_lengths(token, self.is_subordinate_proposition)
                 self.subordinate_chains += chains_lenghts
                 self.n_subordinate_chain += len(chains_lenghts)

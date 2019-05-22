@@ -49,9 +49,7 @@ class Sentence:
         for n in tokens:
             if n.head == 0:
                 self.root = n
-            if n.head != 0:
-                # TODO tokens[n.head] --> se n.head = 3 prenderà sempre il token4 ???????
-                # Append children to ROOT token
+            if n.head != 0 and n.upos != 'PUNCT':
                 tokens[n.head - 1].children.append(n)
 
     def __repr__(self):

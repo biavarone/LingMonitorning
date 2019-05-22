@@ -27,6 +27,14 @@ def read_dictionary(dict_file):
 
 
 def read_and_compute(sentences, type_chosen, *fund_dictionary):
+    '''
+
+
+    :param sentences:
+    :param type_chosen:
+    :param fund_dictionary:
+    :return:
+    '''
 
     if fund_dictionary:
         # Import file of 'Dizionario Fondamentale (De Mauro)' (only for Italian for now)
@@ -42,14 +50,14 @@ def read_and_compute(sentences, type_chosen, *fund_dictionary):
             doc_sent.append(sentence)
             # Compute linguistic features and store them in a dictionary {Key: sentence_id, Value: sentence_features}
             # The function takes in input the sentences of every document and the Dizionario Fondamentale, if present
-            features = compute_features(doc_sent, dictionary)
+            features = compute_features(doc_sent, dictionary, type_analysis=type_chosen)
             sent_features[sent_id] = features
             doc_sent = []
     elif type_chosen == 1:
         doc_id = sentences[0]
         for sentence in sentences[1].values():
             doc_sent.append(sentence)
-        features = compute_features(doc_sent, dictionary)
+        features = compute_features(doc_sent, dictionary, type_analysis=type_chosen)
         sent_features[doc_id] = features
 
     return sent_features
@@ -111,20 +119,29 @@ def read_file(input_file):
 
 
 def dir_path(path):
-    if os.path.isdir(path):
-        return path
+    files_path = []
+
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            files_path = glob.glob(path + '*')
+            return files_path
+        else:
+            files_path.append(path)
+            return files_path
     else:
         raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Extract linguistic features from sentences or documents parsed in'
+    parser = argparse.ArgumentParser(description='Extract linguistic features from sentences or documents parsed in '
                                                  'CoNLL-U format')
-    parser.add_argument('-path', type=dir_path)
+    parser.add_argument('-p', '--path', type=dir_path, help='specify the path of the directory that contains the file or'
+                                                            'the files you want to analyse or specify the single file'
+                                                            'you want to analyse.')
     parser.add_argument('-d', '--dict', type=str, required=False,
-                        help='Dictionary that contains the categories of the frequency of use of lemmas and words (see '
+                        help='dictionary that contains the categories of the frequency of use of lemmas and words (see '
                              'the README for details on the structure of the dictionary)')
-    parser.add_argument('-t', '--type', type=int, default=1, choices=[0, 1], help='Select if you want to analyse the '
+    parser.add_argument('-t', '--type', type=int, default=1, choices=[0, 1], help='select if you want to analyse the '
                                                                                   'single sentences [0] contained in a '
                                                                                   'file or the whole file as a document'
                                                                                   '[1]. Default is 1 for documents.')
@@ -135,7 +152,7 @@ if __name__ == '__main__':
 
     docs_features = {}
     args = parse_arguments()
-    files = glob.glob(args.path + '*')
+    files = args.path
 
     for name in files:
         docs = read_file(name)
@@ -149,26 +166,26 @@ if __name__ == '__main__':
 
         if args.type == 0:
             my_output = name.strip().split('/')
-            output_name = my_output[1]
+            output_name = my_output[-1]
 
             try:
-                outfile = codecs.open('output_results/' + output_name + '.out', 'w')
+                outfile = codecs.open('output_results/' + output_name + '_sent.out', 'w')
             except OSError:
                 os.makedirs('output_results')
-                outfile = codecs.open('output_results/' + output_name + '.out', 'w')
+                outfile = codecs.open('output_results/' + output_name + '_sent.out', 'w')
 
             outfile.write(vectorize(computed_features))
             outfile.close()
 
         if args.type == 1:
             my_output = name.strip().split('/')
-            output_name = my_output[1]
+            output_name = my_output[0]
 
             try:
-                outfile = codecs.open('output_results/results.out', 'w')
+                outfile = codecs.open('output_results/' + output_name + '_doc.out', 'w')
             except OSError:
                 os.makedirs('output_results')
-                outfile = codecs.open('output_results/results.out', 'w')
+                outfile = codecs.open('output_results/' + output_name + '_doc.out', 'w')
 
             outfile.write(vectorize(docs_features))
             outfile.close()

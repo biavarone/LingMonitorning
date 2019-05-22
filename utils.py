@@ -54,10 +54,6 @@ def vectorize(documents):
         for feature, value in features.items():
             if isinstance(value, float) or isinstance(value, int):
                 feats[feature] = None
-            elif isinstance(value, list) and len(value) == 1:
-                for el in value:
-                    if el[:5] == 'chunk':
-                        feats[feature] = None
             else:
                 try:
                     feats[feature] = list(set(feats[feature] + [i[0] for i in value]))
@@ -67,11 +63,12 @@ def vectorize(documents):
     s = 'identifier' + '\t'
     for feat, val in feats.items():
         if val:
+            # print(val)
             for i in val:
                 s += str(i) + '\t'
         else:
             s += feat + '\t'
-    to_print = (s[:-2]) + '\n'
+    to_print = (s[:-1]) + '\n'
     # PRINT HEADER END
 
     for identifier, document in documents.items():
@@ -84,7 +81,10 @@ def vectorize(documents):
                     except KeyError:
                         s += '0' + '\t'
             else:
-                s += str(document[feat]) + '\t'
-        to_print += s[:-2] + '\n'
+                if not document[feat]:
+                    s += '0' + '\t'
+                else:
+                    s += str(document[feat]) + '\t'
+        to_print += s[:-1] + '\n'
 
     return to_print
