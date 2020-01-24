@@ -111,7 +111,7 @@ def compute_features(sentences, dictionary, type_analysis):
     features_values['subj_post'] = ratio(features.n_subj_post, features.n_subj_pre + features.n_subj_post)
     features_values['obj_pre'] = ratio(features.n_obj_pre, features.n_obj_pre + features.n_obj_post)
     features_values['obj_post'] = ratio(features.n_obj_post, features.n_obj_pre + features.n_obj_post)
-    features_values['n_ prepositional_chains'] = features.n_prepositional_chain
+    features_values['n_prepositional_chains'] = features.n_prepositional_chain
     features_values['avg_prepositional_chain_len'] = ratio(features.total_prepositional_chain_len, features.n_prepositional_chain)
     features_values['prepositional_chain_total'] = sorted(
         {'prep_total_' + str(i): features.prep_chains.count(i) for i in set(features.prep_chains)}.items(),
